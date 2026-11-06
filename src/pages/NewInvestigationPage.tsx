@@ -27,6 +27,23 @@ export const NewInvestigationPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const addFiles = (incoming: File[]) => {
+    const valid: File[] = [];
+    const rejected: string[] = [];
+    for (const file of incoming) {
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      if (!['pdf', 'png', 'jpg', 'jpeg'].includes(extension || '')) {
+        rejected.push(`${file.name}: unsupported format`);
+      } else if (file.size > 25 * 1024 * 1024) {
+        rejected.push(`${file.name}: exceeds 25 MB`);
+      } else {
+        valid.push(file);
+      }
+    }
+    setFiles((previous) => [...previous, ...valid]);
+    setError(rejected.length ? `Skipped file(s): ${rejected.join(', ')}` : null);
+  };
+
   useEffect(() => {
     if (selectedSeed === 'CASE_001') {
       setTitle('Case 001 — Financial Salary Discrepancy Investigation');
@@ -43,20 +60,12 @@ export const NewInvestigationPage: React.FC = () => {
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    if (e.dataTransfer.files) {
-      const incoming = Array.from(e.dataTransfer.files);
-      const valid = incoming.filter((f) =>
-        ['application/pdf', 'image/png', 'image/jpeg'].includes(f.type) ||
-        f.name.endsWith('.pdf') || f.name.endsWith('.png') || f.name.endsWith('.jpg')
-      );
-      setFiles((prev) => [...prev, ...valid]);
-    }
+    addFiles(Array.from(e.dataTransfer.files));
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const incoming = Array.from(e.target.files);
-      setFiles((prev) => [...prev, ...incoming]);
+      addFiles(Array.from(e.target.files));
     }
   };
 
@@ -161,7 +170,7 @@ export const NewInvestigationPage: React.FC = () => {
         <div className="p-6 rounded-2xl bg-gradient-to-br from-violet-50/80 via-white to-sky-50/40 border border-violet-100 shadow-xs">
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-violet-600" />
-            <h2 className="text-sm font-bold text-slate-900">2. Pre-Packaged Hackathon Benchmark Scenarios</h2>
+            <h2 className="text-sm font-bold text-slate-900">2. Sample Investigation Cases</h2>
           </div>
           <p className="text-xs text-slate-600 mb-4">
             Select one of the controlled synthetic forensic cases to test deterministic cross-document reconciliation and visual ELA.

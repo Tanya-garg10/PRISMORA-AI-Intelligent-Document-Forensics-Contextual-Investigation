@@ -1,16 +1,14 @@
 # PRISMORA AI — System Architecture
 **AI-Powered Document Forensics & Contextual Intelligence System**
-*DataOps Innovation Hackathon 2026 | Challenge: Problem Statement 2 | Team: BrandCanvas*
-
 ---
 
 ## 1. Architectural Philosophy
 Traditional OCR systems treat documents in isolation: they ingest pixels and output text. **PRISMORA AI** approaches multi-document verification through contextual forensics:
 1. **Multi-Document Topology**: Investigates information networks, identifying contradictions across disparate records (e.g., Application vs. Bank Statement vs. Tax Record).
-2. **Tri-Tier Evidence Grading**: Rigorously categorizes every finding as:
+2. **Evidence Review**: Separates automated observations and potential anomalies from analyst decisions:
    - **Observation**: Visual, structural, or statistical anomaly (e.g., ELA variance, compression inconsistency).
    - **Potential Anomaly**: Field mismatch or logical discrepancy with plausible benign explanations.
-   - **Confirmed Fact**: Verified ground truth validated against immutable references or multi-witness corroboration.
+   - **Human Review**: A reviewer records a decision; the application does not independently confirm fraud.
 3. **Bounded Agentic Loop**: An autonomous, self-limiting investigation agent executing `OBSERVE → PLAN → INVESTIGATE → CORRELATE → EXPLAIN → REVIEW`.
 
 ---
@@ -28,8 +26,8 @@ Traditional OCR systems treat documents in isolation: they ingest pixels and out
   │ • SHA-256 Hashing │ • Font & Metadata │ • Deterministic + LLM Reasoner │
   ├───────────────────┼───────────────────┼────────────────────────────────┤
   │ 4. CrossDoc Graph │ 5. EvidenceVault  │ 6. DossierGen                  │
-  │ Relationship Net  │ Audit & Integrity │ Forensic Dossier Production    │
-  │ • React Flow Net  │ • Immutable Store │ • ReportLab PDF Dossiers       │
+  │ Relationship Net  │ Audit & Integrity │ PDF Report Generation          │
+  │ • React Flow Net  │ • File Hashes     │ • ReportLab PDFs                │
   │ • Entity Linking  │ • Bounding Box Ref│ • Complete Audit Provenance    │
   │ • Contradictions  │ • Chain of Custody│ • Visual Evidence Insets       │
   └───────────────────┴───────────────────┴────────────────────────────────┘
@@ -38,8 +36,8 @@ Traditional OCR systems treat documents in isolation: they ingest pixels and out
 ---
 
 ## 3. Data Flow Pipeline
-1. **Ingestion (`DocMind`)**: Files are hashed (SHA-256), stored in immutable storage, rendered to 300-DPI frames, and parsed into structured OCR blocks with bounding boxes and confidence scores.
-2. **Forensic Scanning (`PixelTrace`)**: Images undergo ELA (Error Level Analysis), JPEG compression artifact inspection, noise consistency mapping, and metadata provenance verification.
-3. **Cross-Doc Correlation (`ContextIQ`)**: Deterministic normalization aligns dates, currency denominations (monthly vs. annual), tax deductions, and address tokenization.
-4. **Agentic Reasoning (`Agentic Loop`)**: A bounded agent queries missing data, invokes deep regional inspection, and queries Gemini for nuance resolution.
-5. **Graph & Dossier (`CrossDoc` & `DossierGen`)**: Real-time interactive node visualization and court-ready forensic PDF dossiers.
+1. **Ingestion (`DocMind`)**: Files are hashed (SHA-256), stored under the local storage directory, PDF pages are rendered at 200 DPI, and page text is extracted. Image OCR uses Tesseract when installed.
+2. **Forensic Scanning (`PixelTrace`)**: Rendered pages are inspected with ELA; basic PDF or image metadata is also recorded. These indicators require human interpretation.
+3. **Cross-Doc Correlation (`ContextIQ`)**: Deterministic rules compare supported salary and address fields, then may request optional Gemini explanations.
+4. **Agentic Reasoning (`Agentic Loop`)**: A bounded workflow records investigation state and calls database-backed tools under a configured tool budget.
+5. **Graph & Dossier (`CrossDoc` & `DossierGen`)**: The application builds an interactive relationship graph and generates PDF investigation reports from stored data.

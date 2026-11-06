@@ -30,7 +30,7 @@ class DossierGeneratorService:
 
         story = []
         story.append(Paragraph("PRISMORA AI — FORENSIC INVESTIGATION DOSSIER", header_title))
-        story.append(Paragraph("See Beyond the Surface. Discover the Evidence. | DataOps Innovation Hackathon 2026", tagline))
+        story.append(Paragraph("See Beyond the Surface. Discover the Evidence.", tagline))
         story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#6366F1'), spaceAfter=12))
 
         inv = investigation_data

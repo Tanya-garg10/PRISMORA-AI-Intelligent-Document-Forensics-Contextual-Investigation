@@ -11,7 +11,8 @@ import {
   MarkerType,
   Handle,
   Position,
-  NodeProps
+  type Node,
+  type NodeProps
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { 
@@ -19,10 +20,22 @@ import {
   User, Building, Landmark, ShieldAlert, Eye, Filter, RefreshCw
 } from 'lucide-react';
 import { getInvestigation, getInvestigationGraph, getInvestigations } from '../services/api';
-import type { GraphData, GraphNode, GraphEdge } from '../types';
+import type { GraphData, GraphEdge } from '../types';
+
+type GraphCanvasNodeData = {
+  label?: string;
+  type?: string;
+  metadata?: {
+    document_type?: string;
+    entity_type?: string;
+    severity?: string;
+    [key: string]: unknown;
+  };
+};
+type GraphCanvasNode = Node<GraphCanvasNodeData>;
 
 // Custom Node Components
-const DocumentNode = ({ data }: NodeProps) => (
+const DocumentNode = ({ data }: NodeProps<GraphCanvasNode>) => (
   <div className="bg-white rounded-xl border-2 border-indigo-400 shadow-md p-3 min-w-[180px] max-w-[220px]">
     <Handle type="target" position={Position.Top} className="w-2.5 h-2.5 bg-indigo-500" />
     <div className="flex items-center gap-2 mb-1.5">
@@ -40,7 +53,7 @@ const DocumentNode = ({ data }: NodeProps) => (
   </div>
 );
 
-const EntityNode = ({ data }: NodeProps) => {
+const EntityNode = ({ data }: NodeProps<GraphCanvasNode>) => {
   const getIcon = () => {
     switch (data.metadata?.entity_type) {
       case 'person': return <User className="w-3.5 h-3.5 text-emerald-600" />;
@@ -67,7 +80,7 @@ const EntityNode = ({ data }: NodeProps) => {
   );
 };
 
-const FindingNode = ({ data }: NodeProps) => (
+const FindingNode = ({ data }: NodeProps<GraphCanvasNode>) => (
   <div className="bg-rose-50 rounded-xl border-2 border-rose-400 shadow-md p-3 min-w-[190px] max-w-[230px]">
     <Handle type="target" position={Position.Top} className="w-2.5 h-2.5 bg-rose-500" />
     <div className="flex items-center justify-between mb-1">
@@ -128,9 +141,16 @@ export default function RelationshipGraphPage() {
 
     // Filter nodes according to toggle states
     const activeNodes = graphData.nodes.filter(n => {
-      if (n.type === 'document' && !filterDocs) return false;
-      if (n.type === 'entity' && !filterEntities) return false;
-      if (n.type === 'finding' && !filterFindings) return false;
+      const type = n.type === 'documentNode'
+        ? 'document'
+        : n.type === 'entityNode'
+          ? 'entity'
+          : n.type === 'findingNode'
+            ? 'finding'
+            : n.type;
+      if (type === 'document' && !filterDocs) return false;
+      if (type === 'entity' && !filterEntities) return false;
+      if (type === 'finding' && !filterFindings) return false;
       return true;
     });
 
@@ -145,18 +165,27 @@ export default function RelationshipGraphPage() {
     let findingY = 50;
 
     const formattedNodes = activeNodes.map((n) => {
+      const backendType = n.type;
+      const nodeType = backendType === 'documentNode'
+        ? 'document'
+        : backendType === 'entityNode'
+          ? 'entity'
+          : backendType === 'findingNode'
+            ? 'finding'
+            : backendType;
+      const nodeData = n.data || {};
       let x = 100;
       let y = 100;
 
-      if (n.type === 'document') {
+      if (nodeType === 'document') {
         x = 60;
         y = docY;
         docY += 120;
-      } else if (n.type === 'entity') {
+      } else if (nodeType === 'entity') {
         x = 380;
         y = entityY;
         entityY += 100;
-      } else if (n.type === 'finding') {
+      } else if (nodeType === 'finding') {
         x = 700;
         y = findingY;
         findingY += 130;
@@ -164,12 +193,15 @@ export default function RelationshipGraphPage() {
 
       return {
         id: n.id,
-        type: n.type,
+        type: nodeType,
         position: { x, y },
         data: {
-          label: n.label,
-          type: n.type,
-          metadata: n.metadata,
+          label: nodeData.filename || nodeData.title || nodeData.label || nodeData.value || n.label || n.id,
+          type: nodeType,
+          metadata: {
+            ...nodeData,
+            entity_type: nodeData.field_type || nodeData.entity_type,
+          },
         },
       };
     });
@@ -178,12 +210,13 @@ export default function RelationshipGraphPage() {
     const formattedEdges = graphData.edges
       .filter(e => activeNodeIds.has(e.source) && activeNodeIds.has(e.target))
       .map(e => {
-        const isDiscrepancy = e.relationship_type.includes('DISCREPANCY') || e.relationship_type.includes('MISMATCH') || e.relationship_type.includes('EVIDENCE');
+        const relationshipType = e.relationship_type || e.label || '';
+        const isDiscrepancy = /DISCREPANCY|MISMATCH|EVIDENCE|CONTRADICTS/i.test(relationshipType);
         return {
           id: e.id,
           source: e.source,
           target: e.target,
-          label: e.label || e.relationship_type.replace(/_/g, ' ').toLowerCase(),
+          label: e.label || relationshipType.replace(/_/g, ' ').toLowerCase(),
           animated: isDiscrepancy,
           style: {
             stroke: isDiscrepancy ? '#f43f5e' : '#94a3b8',

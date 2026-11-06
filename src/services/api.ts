@@ -67,6 +67,12 @@ export const listDocuments = async (investigationId: string): Promise<DocumentIt
   return res.json();
 };
 
+export const getAllDocuments = async (): Promise<DocumentItem[]> => {
+  const res = await fetch('/api/documents');
+  if (!res.ok) throw new Error('Failed to fetch documents');
+  return res.json();
+};
+
 export const getDocument = async (documentId: string): Promise<DocumentItem> => {
   const res = await fetch(`/api/documents/${documentId}`);
   if (!res.ok) throw new Error('Failed to get document');
@@ -93,7 +99,7 @@ export const reviewFinding = async (
   const res = await fetch(`/api/findings/${findingId}/review`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ review_decision: decision, notes }),
+    body: JSON.stringify({ decision, notes }),
   });
   if (!res.ok) throw new Error('Failed to submit review');
   return res.json();
@@ -106,12 +112,23 @@ export const getInvestigationGraph = async (investigationId: string): Promise<Gr
 };
 export const getGraph = getInvestigationGraph;
 
-export const generateReport = async (investigationId: string): Promise<{ download_url: string; filename: string }> => {
+export const generateReport = async (investigationId: string): Promise<{ filename: string }> => {
   const res = await fetch(`/api/investigations/${investigationId}/report`);
   if (!res.ok) throw new Error('Failed to generate report');
+  const blob = await res.blob();
+  const disposition = res.headers.get('content-disposition');
+  const filename = disposition?.match(/filename="?([^";]+)"?/i)?.[1]
+    || `PRISMORA_Dossier_${investigationId.slice(0, 8)}.pdf`;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   return {
-    download_url: `/api/investigations/${investigationId}/report`,
-    filename: `PRISMORA_Dossier_${investigationId.slice(0, 8)}.pdf`
+    filename
   };
 };
 
@@ -137,6 +154,7 @@ export const api = {
   runAnalysis,
   runInvestigationPipeline,
   listDocuments,
+  getAllDocuments,
   getDocument,
   getDocumentFields,
   getFindings,

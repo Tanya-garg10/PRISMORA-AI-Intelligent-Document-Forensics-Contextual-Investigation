@@ -1,313 +1,288 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Activity,
-  PlusCircle,
-  FileText,
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
+  ArrowDownRight,
   ArrowRight,
-  Shield,
-  Layers,
+  ArrowUpRight,
+  CheckCircle2,
+  Clock3,
+  FileStack,
+  Fingerprint,
+  FolderKanban,
+  LoaderCircle,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldAlert,
   Sparkles,
-  ExternalLink,
-  RefreshCw
 } from 'lucide-react';
 import { api } from '../services/api';
-import { Investigation } from '../types';
+import type { Investigation } from '../types';
 
-export const DashboardPage: React.FC = () => {
+const samples = [
+  { id: 'CASE_001', title: 'Financial records', meta: 'Income & supporting records', icon: FileStack, tone: 'violet' },
+  { id: 'CASE_002', title: 'Address records', meta: 'Address consistency review', icon: Fingerprint, tone: 'blue' },
+  { id: 'CASE_003', title: 'Invoice records', meta: 'Invoice & purchase order', icon: ShieldAlert, tone: 'amber' },
+];
+
+const statusClass: Record<string, string> = {
+  CREATED: 'status-neutral',
+  PROCESSING: 'status-processing',
+  ANALYZED: 'status-success',
+  REVIEW_REQUIRED: 'status-review',
+  COMPLETED: 'status-success',
+};
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? '—'
+    : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+}
+
+function relativeDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Date unavailable';
+  const days = Math.max(0, Math.floor((Date.now() - date.getTime()) / 86_400_000));
+  if (days === 0) return 'Updated today';
+  if (days === 1) return 'Updated yesterday';
+  return `Updated ${days} days ago`;
+}
+
+export default function DashboardPage() {
   const navigate = useNavigate();
   const [investigations, setInvestigations] = useState<Investigation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const [seeding, setSeeding] = useState<string | null>(null);
 
   const fetchInvestigations = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.listInvestigations();
-      setInvestigations(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load investigations');
+      setInvestigations(await api.listInvestigations());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load investigations.');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchInvestigations();
-  }, []);
+  useEffect(() => { void fetchInvestigations(); }, []);
 
-  const handleSeedQuickCase = async (caseKey: string, title: string) => {
+  const sortedInvestigations = useMemo(
+    () => [...investigations].sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime()),
+    [investigations],
+  );
+  const filteredInvestigations = sortedInvestigations.filter((item) =>
+    `${item.title} ${item.description || ''} ${item.status}`.toLowerCase().includes(search.toLowerCase()),
+  );
+  const documentCount = investigations.reduce((sum, item) => sum + (item.document_count || 0), 0);
+  const findingCount = investigations.reduce((sum, item) => sum + (item.finding_count || 0), 0);
+  const pendingCount = investigations.reduce((sum, item) => sum + (item.pending_review_count || 0), 0);
+
+  const launchSample = async (sampleId: string, title: string) => {
     try {
-      setSeeding(caseKey);
-      const created = await api.createInvestigation({
-        title,
-        description: `Automated DataOps benchmark demonstration for ${caseKey}.`,
-        seed_case: caseKey,
+      setSeeding(sampleId);
+      const investigation = await api.createInvestigation({
+        title: `Sample review · ${title}`,
+        description: `Investigation created from the ${sampleId} sample document set.`,
+        seed_case: sampleId,
       });
-      // Redirect to the newly created investigation workspace
-      navigate(`/investigations/${created.id}`);
-    } catch (err: any) {
-      alert(`Error launching case: ${err.message}`);
+      navigate(`/investigations/${investigation.id}?autoRun=true`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not launch the sample investigation.');
     } finally {
       setSeeding(null);
     }
   };
 
-  // Compute metrics from actual database records (no fabricated stats)
-  const totalCases = investigations.length;
-  const totalDocs = investigations.reduce((sum, i) => sum + (i.document_count || 0), 0);
-  const totalFindings = investigations.reduce((sum, i) => sum + (i.finding_count || 0), 0);
-  const pendingReviews = investigations.filter((i) => i.status === 'REVIEW_REQUIRED' || !i.human_verdict).length;
-
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div className="app-content">
+      <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-violet-600 bg-violet-50 px-2.5 py-0.5 rounded-full border border-violet-100">
-              Operations Center
-            </span>
+          <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7363bf]">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Investigation workspace
           </div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Forensic Intelligence Dashboard</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Real-time telemetry and investigation dossiers across all active document verification cases.
+          <h1 className="text-[30px] font-semibold leading-tight tracking-[-0.045em] text-[#17182b] sm:text-[36px]">
+            Your Investigation Workspace
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+            Connect the records, follow the evidence, and keep every conclusion grounded in reviewable sources.
           </p>
         </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchInvestigations}
-            disabled={loading}
-            className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors shadow-xs"
-            title="Refresh database"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-violet-600' : ''}`} />
+        <div className="flex items-center gap-2.5">
+          <button type="button" onClick={() => void fetchInvestigations()} disabled={loading} className="button-secondary !h-11 !px-3" aria-label="Refresh investigations">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
-          <Link
-            to="/investigations/new"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 shadow-sm shadow-violet-500/20 transition-all active:scale-98 text-sm"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>New Investigation</span>
+          <Link to="/investigations/new" className="button-primary !h-11">
+            <Plus className="h-4 w-4" /> New investigation
           </Link>
         </div>
       </div>
 
-      {/* Metrics Row (Strictly Calculated From Database Records) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500">Total Investigations</span>
-            <div className="w-8 h-8 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center">
-              <Activity className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-3xl font-black text-slate-900">{totalCases}</div>
-          <p className="text-[11px] text-slate-400 mt-1">Verified cases in SQLite store</p>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500">Documents Ingested</span>
-            <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
-              <FileText className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-3xl font-black text-slate-900">{totalDocs}</div>
-          <p className="text-[11px] text-slate-400 mt-1">SHA-256 hashed originals</p>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500">Total Findings</span>
-            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-3xl font-black text-slate-900">{totalFindings}</div>
-          <p className="text-[11px] text-slate-400 mt-1">Cross-document anomalies</p>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500">Human Reviews Pending</span>
-            <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center">
-              <Clock className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-3xl font-black text-slate-900">{pendingReviews}</div>
-          <p className="text-[11px] text-slate-400 mt-1">Awaiting analyst adjudication</p>
-        </div>
-      </div>
-
-      {/* 1-Click Benchmark Launch Bar */}
-      <div className="mb-10 p-5 rounded-2xl bg-gradient-to-r from-violet-50 via-indigo-50/50 to-sky-50 border border-violet-100/90 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-violet-600" />
-              <h3 className="font-bold text-slate-900 text-sm">Quick-Launch Hackathon Evaluation Cases</h3>
-            </div>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Instantly seed and audit controlled test cases from the synthetic forensic dataset with one click.
+      <section className="dashboard-hero mb-6 overflow-hidden rounded-2xl p-6 text-white sm:p-8">
+        <div className="relative z-10 flex flex-col justify-between gap-6 xl:flex-row xl:items-center">
+          <div className="max-w-xl">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-100">
+              <Sparkles className="h-3 w-3" /> Evidence, in context
+            </span>
+            <h2 className="mt-4 text-2xl font-semibold leading-tight tracking-[-0.04em] sm:text-[30px]">
+              See the whole case,<br className="hidden sm:block" /> not just the individual files.
+            </h2>
+            <p className="mt-2 max-w-md text-sm leading-6 text-indigo-100/75">
+              Compare extracted information across documents and inspect the source behind every potential finding.
             </p>
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <button
-            onClick={() => handleSeedQuickCase('CASE_001', 'Case 001 — Financial Salary Discrepancy')}
-            disabled={seeding !== null}
-            className="p-3.5 rounded-xl bg-white/90 hover:bg-white border border-violet-200/80 shadow-xs hover:shadow-sm text-left transition-all active:scale-98 disabled:opacity-50"
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-violet-600 block mb-0.5">Case 001</span>
-            <h4 className="text-xs font-bold text-slate-900">Financial Discrepancy</h4>
-            <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">$12,500 application vs $9,200 pay stub</p>
-          </button>
-
-          <button
-            onClick={() => handleSeedQuickCase('CASE_002', 'Case 002 — Address Domicile Contradiction')}
-            disabled={seeding !== null}
-            className="p-3.5 rounded-xl bg-white/90 hover:bg-white border border-sky-200/80 shadow-xs hover:shadow-sm text-left transition-all active:scale-98 disabled:opacity-50"
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 block mb-0.5">Case 002</span>
-            <h4 className="text-xs font-bold text-slate-900">Address Contradiction</h4>
-            <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">Springfield application vs Eugene lease</p>
-          </button>
-
-          <button
-            onClick={() => handleSeedQuickCase('CASE_003', 'Case 003 — Visual Invoice Splicing Anomaly')}
-            disabled={seeding !== null}
-            className="p-3.5 rounded-xl bg-white/90 hover:bg-white border border-emerald-200/80 shadow-xs hover:shadow-sm text-left transition-all active:scale-98 disabled:opacity-50"
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block mb-0.5">Case 003</span>
-            <h4 className="text-xs font-bold text-slate-900">Visual Tampering & ELA</h4>
-            <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">$14,500 authentic vs $41,500 spliced invoice</p>
-          </button>
-        </div>
-      </div>
-
-      {/* Investigations Table / Feed */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-900">Recent Investigations</h2>
-          <span className="text-xs text-slate-400 font-medium">Sorted by creation date</span>
-        </div>
-
-        {loading ? (
-          <div className="p-12 text-center text-slate-400">
-            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-violet-500" />
-            <p className="text-xs">Loading investigation records from SQLite database...</p>
-          </div>
-        ) : error ? (
-          <div className="p-12 text-center text-rose-500">
-            <AlertTriangle className="w-6 h-6 mx-auto mb-2" />
-            <p className="text-xs font-semibold">{error}</p>
-          </div>
-        ) : investigations.length === 0 ? (
-          <div className="p-16 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
-              <FileText className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-bold text-slate-800">No investigations created yet</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-5">
-              Launch one of the three pre-built benchmark cases above or upload custom documents to initiate an investigation.
-            </p>
-            <Link
-              to="/investigations/new"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 shadow-xs"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span>Create First Investigation</span>
+          <div className="flex flex-wrap gap-2.5">
+            <Link to="/investigations/new" className="inline-flex h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-[#302668] transition hover:bg-violet-50">
+              Create a case <ArrowRight className="h-4 w-4" />
             </Link>
+            <a href="#investigations" className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-4 text-sm font-medium text-white transition hover:bg-white/10">
+              Browse investigations
+            </a>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-100">
-                <tr>
-                  <th className="px-6 py-3.5">Investigation Title</th>
-                  <th className="px-6 py-3.5">Status</th>
-                  <th className="px-6 py-3.5">Documents</th>
-                  <th className="px-6 py-3.5">Findings</th>
-                  <th className="px-6 py-3.5">Human Verdict</th>
-                  <th className="px-6 py-3.5">Created Date</th>
-                  <th className="px-6 py-3.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {investigations.map((inv) => {
-                  const statusColors: Record<string, string> = {
-                    CREATED: 'bg-slate-100 text-slate-700 border-slate-200',
-                    PROCESSING: 'bg-blue-100 text-blue-800 border-blue-200 animate-pulse',
-                    ANALYZED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-                    REVIEW_REQUIRED: 'bg-rose-100 text-rose-800 border-rose-200 font-bold',
-                    COMPLETED: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-                  };
+        </div>
+        <div className="hero-orbit hero-orbit-one" aria-hidden="true" />
+        <div className="hero-orbit hero-orbit-two" aria-hidden="true" />
+      </section>
 
-                  return (
-                    <tr key={inv.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-slate-900">
-                        <Link to={`/investigations/${inv.id}`} className="hover:text-violet-600 transition-colors">
-                          {inv.title}
-                        </Link>
-                        {inv.description && (
-                          <p className="text-[11px] text-slate-400 font-normal line-clamp-1 mt-0.5">{inv.description}</p>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${statusColors[inv.status] || 'bg-slate-100'}`}>
-                          {inv.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 font-medium">{inv.document_count || 0} files</td>
-                      <td className="px-6 py-4">
-                        {(inv.critical_findings_count || 0) > 0 ? (
-                          <span className="inline-flex items-center gap-1 font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200/60">
-                            <AlertTriangle className="w-3 h-3" />
-                            {inv.critical_findings_count} Critical
-                          </span>
-                        ) : (inv.finding_count || 0) > 0 ? (
-                          <span className="text-amber-600 font-medium">{inv.finding_count} anomalies</span>
-                        ) : (
-                          <span className="text-slate-400">0 findings</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {inv.human_verdict ? (
-                          <span className="font-semibold text-slate-800 text-[11px]">{inv.human_verdict}</span>
-                        ) : (
-                          <span className="text-slate-400 italic text-[11px]">Pending Review</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-slate-500 text-[11px]">
-                        {new Date(inv.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Link
-                          to={`/investigations/${inv.id}`}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 transition-colors"
-                        >
-                          <span>Workspace</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {error && (
+        <div role="alert" className="mb-5 flex items-center justify-between gap-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <span>{error}</span><button type="button" onClick={() => void fetchInvestigations()} className="font-semibold underline">Try again</button>
+        </div>
+      )}
+
+      <section className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Investigation summary">
+        {[
+          { label: 'Investigations', value: investigations.length, icon: FolderKanban, hint: 'All recorded cases', tint: 'violet' },
+          { label: 'Documents', value: documentCount, icon: FileStack, hint: 'Original files ingested', tint: 'blue' },
+          { label: 'Potential findings', value: findingCount, icon: ShieldAlert, hint: 'Require source review', tint: 'amber' },
+          { label: 'Pending review', value: pendingCount, icon: Clock3, hint: 'Awaiting a decision', tint: 'rose' },
+        ].map(({ label, value, icon: Icon, hint, tint }) => (
+          <article key={label} className="metric-card">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium text-slate-500">{label}</p>
+                {loading ? <div className="mt-3 h-8 w-14 animate-pulse rounded-lg bg-slate-100" /> : <p className="mt-2 text-[30px] font-semibold tracking-[-0.05em] text-[#17182b]">{error ? '—' : value.toLocaleString()}</p>}
+              </div>
+              <span className={`metric-icon metric-${tint}`}><Icon className="h-[18px] w-[18px]" strokeWidth={1.8} /></span>
+            </div>
+            <p className="mt-3 text-[11px] text-slate-400">{hint}</p>
+          </article>
+        ))}
+      </section>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.8fr)]">
+        <section id="investigations" className="panel-card scroll-mt-6">
+          <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div>
+              <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-[#17182b]">Recent investigations</h2>
+              <p className="mt-1 text-xs text-slate-400">Cases from your workspace, ordered by latest update.</p>
+            </div>
+            <label className="relative block sm:w-56">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search investigations" className="h-10 w-full rounded-lg border border-slate-200 bg-[#fbfbfd] pl-9 pr-3 text-xs outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100" />
+            </label>
           </div>
-        )}
+
+          {loading ? (
+            <div className="grid gap-3 p-5">{[0, 1, 2].map((item) => <div key={item} className="h-[58px] animate-pulse rounded-xl bg-slate-50" />)}</div>
+          ) : !error && filteredInvestigations.length === 0 ? (
+            <div className="px-6 py-14 text-center">
+              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><FolderKanban className="h-5 w-5" /></span>
+              <h3 className="mt-4 text-sm font-semibold text-slate-800">{search ? 'No matching investigations' : 'Your workspace is ready'}</h3>
+              <p className="mx-auto mt-1.5 max-w-sm text-xs leading-5 text-slate-500">
+                {search ? 'Try another title or status.' : 'Create an investigation and add documents to start connecting evidence.'}
+              </p>
+              {!search && <Link to="/investigations/new" className="button-primary mx-auto mt-5 !h-10 !text-xs"><Plus className="h-4 w-4" /> Create investigation</Link>}
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {filteredInvestigations.slice(0, 8).map((item) => (
+                <article key={item.id} className="group flex flex-col gap-3 px-5 py-4 transition hover:bg-[#fcfbff] sm:flex-row sm:items-center sm:px-6">
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-100 bg-violet-50/70 text-violet-700">
+                      <FileStack className="h-[17px] w-[17px]" strokeWidth={1.8} />
+                    </span>
+                    <div className="min-w-0">
+                      <Link to={`/investigations/${item.id}`} className="block truncate text-[13px] font-semibold text-slate-800 transition group-hover:text-[#5542b4]">{item.title}</Link>
+                      <p className="mt-1 truncate text-[11px] text-slate-400">{item.description || 'No description provided'}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-[52px] sm:gap-5 sm:pl-0">
+                    <span className={`status-pill ${statusClass[item.status] || 'status-neutral'}`}>{item.status.replaceAll('_', ' ')}</span>
+                    <span className="text-[11px] text-slate-500">{item.document_count || 0} docs</span>
+                    <span className="text-[11px] text-slate-500">{item.finding_count || 0} findings</span>
+                    <span className="hidden min-w-[92px] text-right text-[11px] text-slate-400 lg:block">{formatDate(item.updated_at || item.created_at)}</span>
+                    <Link to={`/investigations/${item.id}`} className="rounded-lg p-2 text-slate-400 transition hover:bg-violet-50 hover:text-violet-700" aria-label={`Open ${item.title}`}>
+                      <ArrowUpRight className="h-4 w-4" />
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+          {filteredInvestigations.length > 8 && (
+            <div className="border-t border-slate-100 px-6 py-3 text-center text-xs text-slate-500">
+              Showing 8 of {filteredInvestigations.length} cases. Use search to find another.
+            </div>
+          )}
+        </section>
+
+        <aside className="space-y-6">
+          <section className="panel-card">
+            <div className="border-b border-slate-100 px-5 py-5">
+              <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-[#17182b]">Recent case updates</h2>
+              <p className="mt-1 text-xs text-slate-400">Activity based on stored case records.</p>
+            </div>
+            {loading ? <div className="space-y-3 p-5">{[0,1,2].map((x) => <div key={x} className="h-12 animate-pulse rounded-lg bg-slate-50" />)}</div> : sortedInvestigations.length ? (
+              <div className="space-y-4 p-5">
+                {sortedInvestigations.slice(0, 4).map((item) => (
+                  <Link key={item.id} to={`/investigations/${item.id}`} className="flex gap-3">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
+                      {item.pending_review_count ? <Clock3 className="h-3.5 w-3.5 text-amber-600" /> : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-medium text-slate-700">{item.title}</span>
+                      <span className="mt-1 block text-[10px] text-slate-400">{relativeDate(item.updated_at || item.created_at)} · {item.status.replaceAll('_', ' ').toLowerCase()}</span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : <p className="px-5 py-6 text-xs text-slate-400">Updates will appear when you create a case.</p>}
+          </section>
+
+          <section className="panel-card p-5">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f0edff] text-[#6552c3]"><Sparkles className="h-4 w-4" /></span>
+              <div><h2 className="text-sm font-semibold text-[#17182b]">Quick actions</h2><p className="text-[10px] text-slate-400">Continue your workflow</p></div>
+            </div>
+            <div className="mt-4 grid gap-2">
+              <Link to="/investigations/new" className="quick-action"><Plus className="h-4 w-4 text-violet-600" /><span>Start a new investigation</span><ArrowRight className="ml-auto h-3.5 w-3.5" /></Link>
+              <Link to="/reports" className="quick-action"><FileStack className="h-4 w-4 text-blue-600" /><span>View report downloads</span><ArrowRight className="ml-auto h-3.5 w-3.5" /></Link>
+              <Link to="/settings" className="quick-action"><CheckCircle2 className="h-4 w-4 text-emerald-600" /><span>Check system status</span><ArrowRight className="ml-auto h-3.5 w-3.5" /></Link>
+            </div>
+          </section>
+        </aside>
       </div>
+
+      <section className="mt-8">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div><p className="eyebrow">Explore with sample data</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em]">Start from a sample document set</h2></div>
+          <p className="text-xs text-slate-400">Creates an investigation using the included dataset.</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          {samples.map(({ id, title, meta, icon: Icon, tone }) => (
+            <button type="button" key={id} onClick={() => void launchSample(id, title)} disabled={seeding !== null} className={`sample-card sample-${tone}`}>
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-700 shadow-sm"><Icon className="h-[18px] w-[18px]" /></span>
+              <span className="min-w-0 flex-1 text-left"><span className="block text-[13px] font-semibold text-slate-800">{title}</span><span className="mt-1 block text-[11px] text-slate-500">{meta}</span></span>
+              {seeding === id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ArrowDownRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:translate-y-0.5" />}
+            </button>
+          ))}
+        </div>
+      </section>
     </div>
   );
-};
-
-export default DashboardPage;
+}

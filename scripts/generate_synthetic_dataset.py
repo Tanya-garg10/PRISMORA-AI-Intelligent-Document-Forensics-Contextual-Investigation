@@ -17,7 +17,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 
-WORKSPACE_ROOT = Path("/app/applet")
+WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
 DATASET_ROOT = WORKSPACE_ROOT / "dataset"
 STORAGE_ROOT = WORKSPACE_ROOT / "storage"
 

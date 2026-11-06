@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   FileText, ShieldAlert, Sparkles, Network, ArrowLeft, Play, 
   CheckCircle, AlertTriangle, XCircle, Search, Layers, Clock, 
   Download, Eye, UserCheck, RefreshCw, FileSearch
 } from 'lucide-react';
-import { getInvestigation, runInvestigationPipeline, generateReport } from '../services/api';
+import { getInvestigation, runInvestigationPipeline, generateReport, reviewFinding } from '../services/api';
 import type { Finding } from '../types';
 
 export default function WorkspacePage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoRunStarted = useRef(false);
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'findings' | 'documents' | 'matrix' | 'agent'>('findings');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
@@ -35,10 +37,36 @@ export default function WorkspacePage() {
 
   const generateReportMutation = useMutation({
     mutationFn: () => generateReport(id!),
-    onSuccess: (data: { download_url: string; filename: string }) => {
-      window.open(data.download_url, '_blank');
-    }
   });
+
+  useEffect(() => {
+    if (
+      searchParams.get('autoRun') !== 'true' ||
+      !investigation ||
+      autoRunStarted.current
+    ) return;
+
+    if (investigation.status === 'PROCESSING') {
+      autoRunStarted.current = true;
+      setSearchParams((current) => {
+        current.delete('autoRun');
+        return current;
+      }, { replace: true });
+      return;
+    }
+
+    if (runPipelineMutation.isPending) return;
+
+    autoRunStarted.current = true;
+    setSearchParams((current) => {
+      current.delete('autoRun');
+      return current;
+    }, { replace: true });
+
+    if (investigation.documents?.length) {
+      runPipelineMutation.mutate();
+    }
+  }, [investigation, runPipelineMutation.isPending, runPipelineMutation.mutate, searchParams, setSearchParams]);
 
   if (isLoading) {
     return (
@@ -69,13 +97,16 @@ export default function WorkspacePage() {
   // Filtered findings
   const filteredFindings = findings.filter(f => {
     if (severityFilter !== 'all' && f.severity !== severityFilter) return false;
-    if (statusFilter !== 'all' && f.status !== statusFilter) return false;
+    if (statusFilter !== 'all' && (f.review_status || f.status) !== statusFilter) return false;
     return true;
   });
 
   // Calculate high-risk count
   const highRiskCount = findings.filter(f => f.severity === 'HIGH' || f.severity === 'CRITICAL').length;
-  const verifiedCount = findings.filter(f => f.status === 'VERIFIED_ANOMALY').length;
+  const verifiedCount = findings.filter(f => (f.review_status || f.status) === 'VERIFIED_ANOMALY').length;
+  const matrixFieldNames = Array.from(new Set(
+    documents.flatMap((document) => (document.extracted_fields || []).map((field) => field.field_name))
+  )).sort();
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -86,6 +117,7 @@ export default function WorkspacePage() {
         </Link>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-violet-600">Investigation record</p>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{investigation.title}</h1>
               <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
@@ -118,7 +150,6 @@ export default function WorkspacePage() {
                 </>
               )}
             </button>
-
             <Link
               to={`/investigations/${investigation.id}/graph`}
               className="inline-flex items-center px-3.5 py-2 rounded-xl text-sm font-semibold bg-white border border-slate-200 text-slate-700 hover:border-violet-300 hover:text-violet-700 shadow-sm transition"
@@ -144,7 +175,17 @@ export default function WorkspacePage() {
               {generateReportMutation.isPending ? 'Generating...' : 'PDF Dossier'}
             </button>
           </div>
+          {generateReportMutation.isError && (
+            <p className="mt-3 text-xs text-rose-600" role="alert">
+              Report failed: {generateReportMutation.error instanceof Error ? generateReportMutation.error.message : 'Unknown report error'}
+            </p>
+          )}
         </div>
+        {runPipelineMutation.isError && (
+          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">
+            Analysis failed: {runPipelineMutation.error instanceof Error ? runPipelineMutation.error.message : 'Unknown pipeline error'}
+          </div>
+        )}
       </div>
 
       {/* Investigation Metrics Banner */}
@@ -152,17 +193,17 @@ export default function WorkspacePage() {
         <div className="bg-white/80 backdrop-blur-md p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Documents Ingested</div>
           <div className="text-2xl font-black text-slate-900 mt-1">{documents.length}</div>
-          <div className="text-xs text-slate-400 mt-0.5">SHA-256 Vault Verified</div>
+          <div className="text-xs text-slate-400 mt-0.5">Originals hashed (SHA-256)</div>
         </div>
         <div className="bg-white/80 backdrop-blur-md p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Findings Identified</div>
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Potential Findings</div>
           <div className="text-2xl font-black text-slate-900 mt-1">{findings.length}</div>
-          <div className="text-xs text-slate-400 mt-0.5">Tri-Tier Forensic Triaged</div>
+          <div className="text-xs text-slate-400 mt-0.5">For human review</div>
         </div>
         <div className="bg-white/80 backdrop-blur-md p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="text-xs font-semibold text-rose-600 uppercase tracking-wider">High / Critical Flags</div>
           <div className="text-2xl font-black text-rose-600 mt-1">{highRiskCount}</div>
-          <div className="text-xs text-rose-500/80 mt-0.5">Requires Immediate Review</div>
+          <div className="text-xs text-rose-500/80 mt-0.5">Prioritized for review</div>
         </div>
         <div className="bg-white/80 backdrop-blur-md p-4 rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Human Verified</div>
@@ -172,8 +213,8 @@ export default function WorkspacePage() {
       </div>
 
       {/* Workspace Tabs */}
-      <div className="border-b border-slate-200 mb-6">
-        <nav className="flex space-x-6">
+      <div className="border-b border-slate-200 mb-6 overflow-x-auto">
+        <nav className="flex min-w-max space-x-6">
           <button
             onClick={() => setActiveTab('findings')}
             className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition ${
@@ -183,7 +224,7 @@ export default function WorkspacePage() {
             }`}
           >
             <ShieldAlert className="w-4 h-4" />
-            Findings & Discrepancies ({findings.length})
+            Overview ({findings.length})
           </button>
           <button
             onClick={() => setActiveTab('documents')}
@@ -194,7 +235,7 @@ export default function WorkspacePage() {
             }`}
           >
             <FileText className="w-4 h-4" />
-            Document Inventory ({documents.length})
+            Visual Forensics ({documents.length})
           </button>
           <button
             onClick={() => setActiveTab('matrix')}
@@ -205,7 +246,7 @@ export default function WorkspacePage() {
             }`}
           >
             <Layers className="w-4 h-4" />
-            Cross-Doc Extracted Matrix
+            Extracted Data
           </button>
           <button
             onClick={() => setActiveTab('agent')}
@@ -216,8 +257,15 @@ export default function WorkspacePage() {
             }`}
           >
             <Sparkles className="w-4 h-4" />
-            Bounded AI Agent Log ({agentActions.length})
+            Context Analysis ({agentActions.length})
           </button>
+          <Link
+            to={`/investigations/${investigation.id}/evidence`}
+            className="pb-3 text-sm font-bold flex items-center gap-2 border-b-2 border-transparent text-slate-500 hover:text-slate-900 transition"
+          >
+            <FileSearch className="w-4 h-4" />
+            Evidence
+          </Link>
         </nav>
       </div>
 
@@ -225,10 +273,10 @@ export default function WorkspacePage() {
       {activeTab === 'findings' && (
         <div>
           {/* Filters */}
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-slate-50/80 p-3 rounded-xl border border-slate-200/60">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-4 mb-6 bg-slate-50/80 p-3 rounded-xl border border-slate-200/60">
+            <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
               <span className="text-xs font-bold text-slate-500 uppercase">Severity:</span>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 {['all', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(s => (
                   <button
                     key={s}
@@ -245,9 +293,9 @@ export default function WorkspacePage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
               <span className="text-xs font-bold text-slate-500 uppercase">Review Status:</span>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 {['all', 'UNREVIEWED', 'VERIFIED_ANOMALY', 'DISMISSED_BENIGN', 'NEEDS_MORE_INFO'].map(st => (
                   <button
                     key={st}
@@ -297,8 +345,8 @@ export default function WorkspacePage() {
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-2">
                     <FileText className="w-5 h-5 text-violet-600 shrink-0" />
-                    <h3 className="font-bold text-slate-900 text-sm truncate max-w-[200px]" title={doc.original_filename}>
-                      {doc.original_filename}
+                    <h3 className="font-bold text-slate-900 text-sm truncate max-w-[200px]" title={doc.filename}>
+                      {doc.filename}
                     </h3>
                   </div>
                   <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-violet-100 text-violet-800">
@@ -317,17 +365,17 @@ export default function WorkspacePage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">SHA-256 (Audit Seal):</span>
-                    <span className="font-mono text-[10px] text-slate-500 truncate max-w-[140px]" title={doc.sha256_hash}>
-                      {doc.sha256_hash.slice(0, 16)}...
+                    <span className="font-mono text-[10px] text-slate-500 truncate max-w-[140px]" title={doc.sha256}>
+                      {doc.sha256?.slice(0, 16)}...
                     </span>
                   </div>
                 </div>
 
-                {doc.pages && doc.pages[0]?.image_path && (
+                {doc.pages && doc.pages[0]?.rendered_image_url && (
                   <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 aspect-4/3 mb-4 group">
                     <img 
-                      src={doc.pages[0].image_path} 
-                      alt={doc.original_filename}
+                      src={doc.pages[0].rendered_image_url}
+                      alt={doc.filename}
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     />
                     <div className="absolute inset-0 bg-linear-to-t from-slate-900/60 via-transparent opacity-0 group-hover:opacity-100 transition flex items-end p-3">
@@ -356,7 +404,7 @@ export default function WorkspacePage() {
           <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <div>
               <h3 className="font-bold text-slate-900">Cross-Document Field Alignment Matrix</h3>
-              <p className="text-xs text-slate-500">Side-by-side verification of extracted fields across all submitted dossier records.</p>
+              <p className="text-xs text-slate-500">Side-by-side comparison of extracted fields across submitted documents.</p>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -366,28 +414,28 @@ export default function WorkspacePage() {
                   <th className="p-3.5">Standard Field</th>
                   {documents.map(d => (
                     <th key={d.id} className="p-3.5 border-l border-slate-200">
-                      <div className="font-bold text-slate-900 truncate max-w-[150px]">{d.original_filename}</div>
+                      <div className="font-bold text-slate-900 truncate max-w-[150px]">{d.filename}</div>
                       <div className="text-[10px] text-violet-600 font-normal">{d.document_type}</div>
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {['applicant_name', 'employee_name', 'monthly_gross_salary', 'net_salary', 'annual_salary', 'employer_name', 'issue_date', 'account_number', 'ssn_or_id'].map((fieldKey) => {
+                {matrixFieldNames.map((fieldKey) => {
                   return (
                     <tr key={fieldKey} className="hover:bg-slate-50/50">
                       <td className="p-3.5 font-bold text-slate-700 capitalize bg-slate-50/40">
                         {fieldKey.replace(/_/g, ' ')}
                       </td>
                       {documents.map(d => {
-                        const match = d.extracted_fields?.find(f => f.field_name.toLowerCase().includes(fieldKey.toLowerCase()) || fieldKey.toLowerCase().includes(f.field_name.toLowerCase()));
+                        const match = d.extracted_fields?.find(f => f.field_name === fieldKey);
                         return (
                           <td key={d.id} className="p-3.5 border-l border-slate-200">
                             {match ? (
                               <div>
-                                <span className="font-semibold text-slate-900">{match.field_value}</span>
+                                <span className="font-semibold text-slate-900">{match.raw_value}</span>
                                 <div className="text-[10px] text-slate-400 mt-0.5">
-                                  conf: {match.confidence_score ? `${Math.round(match.confidence_score * 100)}%` : 'N/A'} (pg {match.page_number})
+                                  conf: {match.confidence ? `${Math.round(match.confidence * 100)}%` : 'N/A'} (pg {match.page_number})
                                 </div>
                               </div>
                             ) : (
@@ -447,7 +495,7 @@ export default function WorkspacePage() {
                       </span>
                     </div>
 
-                    <p className="text-sm text-slate-700 mb-2 font-medium">{action.observation_summary}</p>
+                    <p className="text-sm text-slate-700 mb-2 font-medium">{action.reasoning}</p>
 
                     {action.tool_output && (
                       <div className="mt-2 bg-slate-900 text-slate-200 p-3 rounded-lg text-xs font-mono overflow-x-auto max-h-36">
@@ -468,21 +516,16 @@ export default function WorkspacePage() {
 function FindingCard({ finding, investigationId, documents }: { finding: Finding; investigationId: string; documents: any[] }) {
   const queryClient = useQueryClient();
   const [isUpdating, setIsUpdating] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
-  const handleDecision = async (newStatus: string) => {
+  const handleDecision = async (newStatus: 'VERIFIED_ANOMALY' | 'DISMISSED_BENIGN' | 'NEEDS_MORE_INFO') => {
     setIsUpdating(true);
+    setReviewError(null);
     try {
-      const res = await fetch(`/api/findings/${finding.id}/review`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          review_decision: newStatus,
-          notes: `Updated status via Forensic Workspace triage.`
-        })
-      });
-      if (res.ok) {
-        queryClient.invalidateQueries({ queryKey: ['investigation', investigationId] });
-      }
+      await reviewFinding(finding.id, newStatus, 'Updated status via Forensic Workspace triage.');
+      await queryClient.invalidateQueries({ queryKey: ['investigation', investigationId] });
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : 'Failed to save review decision.');
     } finally {
       setIsUpdating(false);
     }
@@ -524,10 +567,10 @@ function FindingCard({ finding, investigationId, documents }: { finding: Finding
               {finding.severity}
             </span>
             <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 font-mono">
-              {finding.finding_type}
+              {finding.category || finding.finding_type || 'Finding'}
             </span>
-            <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${getStatusBadge(finding.status)}`}>
-              {finding.status.replace('_', ' ')}
+            <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${getStatusBadge(finding.review_status || finding.status || 'UNREVIEWED')}`}>
+              {(finding.review_status || finding.status || 'UNREVIEWED').replace(/_/g, ' ')}
             </span>
           </div>
           <h4 className="text-base font-bold text-slate-900">{finding.title}</h4>
@@ -535,32 +578,15 @@ function FindingCard({ finding, investigationId, documents }: { finding: Finding
 
         <div className="flex items-center gap-2">
           <div className="text-right">
-            <div className="text-xs font-semibold text-slate-500">Confidence</div>
-            <div className="text-sm font-black text-slate-900">{Math.round((finding.confidence_score || 0) * 100)}%</div>
+            <div className="text-xs font-semibold text-slate-500">Evidence items</div>
+            <div className="text-sm font-black text-slate-900">{finding.evidence_items?.length || 0}</div>
           </div>
         </div>
       </div>
 
-      <p className="text-sm text-slate-600 mb-4">{finding.description}</p>
+      <p className="text-sm text-slate-600 mb-4">{finding.explanation}</p>
 
       {/* Discrepancy Values Box */}
-      {(finding.observed_value || finding.expected_value) && (
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-          <div>
-            <span className="font-semibold text-slate-500">Observed Value:</span>
-            <div className="font-mono text-rose-600 font-bold mt-0.5 bg-rose-50 px-2 py-1 rounded border border-rose-100">
-              {finding.observed_value || 'None'}
-            </div>
-          </div>
-          <div>
-            <span className="font-semibold text-slate-500">Expected / Benchmark:</span>
-            <div className="font-mono text-emerald-600 font-bold mt-0.5 bg-emerald-50 px-2 py-1 rounded border border-emerald-100">
-              {finding.expected_value || 'None'}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Action footer */}
       <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2">
@@ -587,6 +613,8 @@ function FindingCard({ finding, investigationId, documents }: { finding: Finding
             Needs Info
           </button>
         </div>
+
+        {reviewError && <p className="w-full text-xs text-rose-600" role="alert">{reviewError}</p>}
 
         <Link
           to={`/investigations/${investigationId}/evidence`}

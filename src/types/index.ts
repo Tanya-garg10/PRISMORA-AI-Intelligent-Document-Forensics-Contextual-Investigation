@@ -8,6 +8,7 @@ export interface Investigation {
   document_count?: number;
   finding_count?: number;
   critical_findings_count?: number;
+  pending_review_count?: number;
   human_verdict?: string;
   review_notes?: string;
   agent_summary?: string;
@@ -20,9 +21,11 @@ export interface DocumentPage {
   id: string;
   document_id: string;
   page_number: number;
-  image_path?: string;
-  ela_image_path?: string;
-  ocr_text?: string;
+  rendered_image_url?: string;
+  ela_image_url?: string;
+  raw_text?: string;
+  width?: number;
+  height?: number;
   ocr_confidence?: number;
   created_at?: string;
 }
@@ -30,13 +33,11 @@ export interface DocumentPage {
 export interface DocumentItem {
   id: string;
   investigation_id: string;
-  original_filename: string;
-  filename?: string;
+  investigation_title?: string;
+  filename: string;
   file_type?: string;
-  file_size?: number;
   file_size_bytes?: number;
   sha256?: string;
-  sha256_hash: string;
   document_type: string;
   classification_confidence?: number;
   ocr_confidence?: number;
@@ -45,6 +46,7 @@ export interface DocumentItem {
   created_at: string;
   pages?: DocumentPage[];
   extracted_fields?: ExtractedField[];
+  observations?: ForensicObservation[];
   rendered_image_url?: string;
 }
 
@@ -73,11 +75,17 @@ export interface ForensicObservation {
   id: string;
   document_id: string;
   page_number: number;
-  observation_type: string;
-  summary: string;
+  technique: string;
+  description: string;
   anomaly_score?: number;
-  bounding_box?: number[];
-  metadata_details?: Record<string, any>;
+  bounding_box?: {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  } | null;
+  evidence_crop_url?: string;
+  limitations?: string;
   created_at?: string;
 }
 
@@ -110,7 +118,7 @@ export interface Finding {
   alternative_explanations?: string[];
   recommended_actions?: string[];
   human_review_required?: boolean;
-  status: 'UNREVIEWED' | 'VERIFIED_ANOMALY' | 'DISMISSED_BENIGN' | 'NEEDS_MORE_INFO';
+  status?: 'UNREVIEWED' | 'VERIFIED_ANOMALY' | 'DISMISSED_BENIGN' | 'NEEDS_MORE_INFO';
   review_status?: 'UNREVIEWED' | 'VERIFIED_ANOMALY' | 'DISMISSED_BENIGN' | 'NEEDS_MORE_INFO';
   reviewer_notes?: string;
   created_at: string;
@@ -133,7 +141,7 @@ export interface AgentAction {
 
 export interface GraphNode {
   id: string;
-  label: string;
+  label?: string;
   type: 'document' | 'entity' | 'finding' | string;
   position?: { x: number; y: number };
   metadata?: Record<string, any>;
@@ -144,7 +152,7 @@ export interface GraphEdge {
   id: string;
   source: string;
   target: string;
-  relationship_type: string;
+  relationship_type?: string;
   label?: string;
   animated?: boolean;
   style?: Record<string, any>;

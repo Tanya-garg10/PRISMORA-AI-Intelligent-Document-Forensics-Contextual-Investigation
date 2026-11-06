@@ -37,11 +37,23 @@ class TestPrismoraBackendAPI:
         for d in docs:
             assert len(d["sha256"]) == 64
 
+        all_docs_res = client.get("/api/documents")
+        assert all_docs_res.status_code == 200
+        case_docs = [doc for doc in all_docs_res.json() if doc["investigation_id"] == inv_id]
+        assert len(case_docs) == len(docs)
+        assert all(doc["investigation_title"] == payload["title"] for doc in case_docs)
+
         analyze_res = client.post(f"/api/investigations/{inv_id}/analyze")
         assert analyze_res.status_code == 200
         analysis_data = analyze_res.json()
         assert analysis_data["status"] in ["ANALYZED", "REVIEW_REQUIRED"]
         assert analysis_data["agent_summary"] is not None
+        processed_doc = analysis_data["documents"][0]
+        assert processed_doc["pages"]
+        assert processed_doc["pages"][0]["rendered_image_url"].startswith("/storage/rendered/")
+        assert processed_doc["pages"][0]["raw_text"]
+        assert processed_doc["extracted_fields"]
+        assert processed_doc["observations"]
 
         findings_res = client.get(f"/api/investigations/{inv_id}/findings")
         assert findings_res.status_code == 200
@@ -71,6 +83,17 @@ class TestPrismoraBackendAPI:
         assert report_res.status_code == 200
         assert report_res.headers["content-type"] == "application/pdf"
         assert len(report_res.content) > 1000
+
+        list_res = client.get("/api/investigations")
+        listed_case = next(item for item in list_res.json() if item["id"] == inv_id)
+        assert listed_case["pending_review_count"] == 0
+
+    def test_unknown_seed_case_is_rejected(self, client):
+        response = client.post(
+            "/api/investigations",
+            json={"title": "Invalid sample case", "seed_case": "CASE_DOES_NOT_EXIST"}
+        )
+        assert response.status_code == 404
 
     def test_case_002_address_contradiction_pipeline(self, client):
         payload = {

@@ -232,7 +232,10 @@ class ContextIQEngine:
             from google import genai
             from google.genai import types
 
-            client = genai.Client(api_key=gemini_api_key)
+            client = genai.Client(
+                api_key=gemini_api_key,
+                http_options=types.HttpOptions(api_version="v1beta")
+            )
             prompt = (
                 f"You are PRISMORA AI's Forensic Contextual Intelligence Engine.\n"
                 f"Review these cross-document findings and refine their contextual explanations with balanced alternative benign scenarios.\n\n"

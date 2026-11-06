@@ -3,7 +3,7 @@ import hashlib
 from pathlib import Path
 import pytest
 
-DATASET_DIR = Path("/app/applet/dataset")
+DATASET_DIR = Path(__file__).resolve().parents[2] / "dataset"
 
 @pytest.fixture
 def ground_truth():

@@ -37,15 +37,27 @@ class ForensicObservationResponse(BaseModel):
     anomaly_score: float
     bounding_box: Optional[Dict[str, Any]] = None
     evidence_crop_path: Optional[str] = None
+    evidence_crop_url: Optional[str] = None
     limitations: Optional[str] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
 
+class DocumentPageResponse(BaseModel):
+    id: str
+    document_id: str
+    page_number: int
+    rendered_image_url: Optional[str] = None
+    ela_image_url: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    raw_text: Optional[str] = None
+
 class DocumentResponse(BaseModel):
     id: str
     investigation_id: str
+    investigation_title: Optional[str] = None
     filename: str
     file_type: str
     file_size_bytes: int
@@ -56,6 +68,9 @@ class DocumentResponse(BaseModel):
     status: str
     created_at: datetime
     rendered_image_url: Optional[str] = None
+    pages: List[DocumentPageResponse] = Field(default_factory=list)
+    extracted_fields: List[ExtractedFieldResponse] = Field(default_factory=list)
+    observations: List[ForensicObservationResponse] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
@@ -121,6 +136,7 @@ class InvestigationResponse(BaseModel):
     document_count: int = 0
     finding_count: int = 0
     critical_findings_count: int = 0
+    pending_review_count: int = 0
     human_verdict: Optional[str] = None
     agent_summary: Optional[str] = None
 

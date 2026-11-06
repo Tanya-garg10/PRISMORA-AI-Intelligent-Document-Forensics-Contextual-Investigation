@@ -1,4 +1,5 @@
 import os
+import shutil
 import uuid
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -30,6 +31,12 @@ router = APIRouter(prefix="/api")
 
 @router.post("/investigations", response_model=InvestigationDetailResponse)
 def create_investigation(payload: InvestigationCreate, db: Session = Depends(get_db)):
+    case_dir = None
+    if payload.seed_case:
+        case_dir = settings.DATASET_DIR / payload.seed_case.lower()
+        if not case_dir.is_dir() or not list(case_dir.glob("*.pdf")):
+            raise HTTPException(status_code=404, detail=f"Sample case '{payload.seed_case}' was not found or contains no PDF documents.")
+
     inv_id = str(uuid.uuid4())
     investigation = Investigation(
         id=inv_id,
@@ -41,37 +48,34 @@ def create_investigation(payload: InvestigationCreate, db: Session = Depends(get
     db.commit()
 
     if payload.seed_case:
-        case_folder = payload.seed_case.lower()
-        case_dir = settings.DATASET_DIR / case_folder
-        if case_dir.exists():
-            for pdf_file in sorted(case_dir.glob("*.pdf")):
-                with open(pdf_file, "rb") as f:
-                    file_bytes = f.read()
-                
-                ingest_res = DocMindIngestionService.ingest_document(file_bytes, pdf_file.name)
-                doc = Document(
-                    id=ingest_res["document_id"],
-                    investigation_id=inv_id,
-                    filename=ingest_res["filename"],
-                    original_path=ingest_res["original_path"],
-                    file_type=ingest_res["file_type"],
-                    file_size_bytes=ingest_res["file_size_bytes"],
-                    sha256=ingest_res["sha256"],
-                    page_count=ingest_res["page_count"],
-                    status="UPLOADED"
+        for pdf_file in sorted(case_dir.glob("*.pdf")):
+            with open(pdf_file, "rb") as f:
+                file_bytes = f.read()
+
+            ingest_res = DocMindIngestionService.ingest_document(file_bytes, pdf_file.name)
+            doc = Document(
+                id=ingest_res["document_id"],
+                investigation_id=inv_id,
+                filename=ingest_res["filename"],
+                original_path=ingest_res["original_path"],
+                file_type=ingest_res["file_type"],
+                file_size_bytes=ingest_res["file_size_bytes"],
+                sha256=ingest_res["sha256"],
+                page_count=ingest_res["page_count"],
+                status="UPLOADED"
+            )
+            db.add(doc)
+            for p in ingest_res["rendered_pages"]:
+                page_obj = DocumentPage(
+                    id=str(uuid.uuid4()),
+                    document_id=doc.id,
+                    page_number=p["page_number"],
+                    rendered_image_path=p["rendered_image_path"],
+                    width=p["width"],
+                    height=p["height"]
                 )
-                db.add(doc)
-                for p in ingest_res["rendered_pages"]:
-                    page_obj = DocumentPage(
-                        id=str(uuid.uuid4()),
-                        document_id=doc.id,
-                        page_number=p["page_number"],
-                        rendered_image_path=p["rendered_image_path"],
-                        width=p["width"],
-                        height=p["height"]
-                    )
-                    db.add(page_obj)
-            db.commit()
+                db.add(page_obj)
+        db.commit()
 
     db.refresh(investigation)
     return investigation
@@ -97,6 +101,10 @@ def list_investigations(db: Session = Depends(get_db)):
             "document_count": doc_count,
             "finding_count": finding_count,
             "critical_findings_count": crit_count,
+            "pending_review_count": db.query(Finding).filter(
+                Finding.investigation_id == inv.id,
+                Finding.review_status == "UNREVIEWED"
+            ).count(),
             "human_verdict": inv.human_verdict,
             "agent_summary": inv.agent_summary
         })
@@ -107,7 +115,94 @@ def get_investigation(id: str, db: Session = Depends(get_db)):
     inv = db.query(Investigation).filter(Investigation.id == id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
-    return inv
+    documents = db.query(Document).filter(Document.investigation_id == id).all()
+    document_responses = []
+    for doc in documents:
+        observations = db.query(ForensicObservation).filter(
+            ForensicObservation.document_id == doc.id
+        ).all()
+        observations_by_page = {}
+        for observation in observations:
+            observations_by_page.setdefault(observation.page_number, []).append(observation)
+
+        pages = db.query(DocumentPage).filter(
+            DocumentPage.document_id == doc.id
+        ).order_by(DocumentPage.page_number).all()
+        page_responses = []
+        for page in pages:
+            page_observations = observations_by_page.get(page.page_number, [])
+            ela_observation = next(
+                (item for item in page_observations if item.technique == "Error Level Analysis (ELA)"),
+                None
+            )
+            page_responses.append({
+                "id": page.id,
+                "document_id": page.document_id,
+                "page_number": page.page_number,
+                "rendered_image_url": (
+                    f"/storage/rendered/{Path(page.rendered_image_path).name}"
+                    if page.rendered_image_path else None
+                ),
+                "ela_image_url": (
+                    f"/storage/evidence/{Path(ela_observation.evidence_crop_path).name}"
+                    if ela_observation and ela_observation.evidence_crop_path else None
+                ),
+                "width": page.width,
+                "height": page.height,
+                "raw_text": page.raw_text
+            })
+
+        document_responses.append({
+            "id": doc.id,
+            "investigation_id": doc.investigation_id,
+            "filename": doc.filename,
+            "file_type": doc.file_type,
+            "file_size_bytes": doc.file_size_bytes,
+            "sha256": doc.sha256,
+            "document_type": doc.document_type,
+            "classification_confidence": doc.classification_confidence,
+            "page_count": doc.page_count,
+            "status": doc.status,
+            "created_at": doc.created_at,
+            "rendered_image_url": page_responses[0]["rendered_image_url"] if page_responses else None,
+            "pages": page_responses,
+            "extracted_fields": db.query(ExtractedField).filter(
+                ExtractedField.document_id == doc.id
+            ).all(),
+            "observations": [
+                {
+                    "id": observation.id,
+                    "document_id": observation.document_id,
+                    "page_number": observation.page_number,
+                    "technique": observation.technique,
+                    "description": observation.description,
+                    "anomaly_score": observation.anomaly_score,
+                    "bounding_box": observation.bounding_box,
+                    "evidence_crop_url": (
+                        f"/storage/evidence/{Path(observation.evidence_crop_path).name}"
+                        if observation.evidence_crop_path else None
+                    ),
+                    "limitations": observation.limitations,
+                    "created_at": observation.created_at
+                }
+                for observation in observations
+            ]
+        })
+
+    return {
+        "id": inv.id,
+        "title": inv.title,
+        "description": inv.description,
+        "status": inv.status,
+        "created_at": inv.created_at,
+        "updated_at": inv.updated_at,
+        "agent_summary": inv.agent_summary,
+        "human_verdict": inv.human_verdict,
+        "review_notes": inv.review_notes,
+        "documents": document_responses,
+        "findings": inv.findings,
+        "agent_actions": inv.agent_actions
+    }
 
 @router.post("/investigations/{id}/documents", response_model=List[DocumentResponse])
 async def upload_documents(id: str, files: List[UploadFile] = File(...), db: Session = Depends(get_db)):
@@ -174,6 +269,29 @@ def list_investigation_documents(id: str, db: Session = Depends(get_db)):
             "rendered_image_url": preview_url
         })
     return results
+
+@router.get("/documents", response_model=List[DocumentResponse])
+def list_documents(db: Session = Depends(get_db)):
+    documents = db.query(Document, Investigation.title).join(
+        Investigation, Document.investigation_id == Investigation.id
+    ).order_by(Document.created_at.desc()).all()
+    return [
+        {
+            "id": doc.id,
+            "investigation_id": doc.investigation_id,
+            "investigation_title": investigation_title,
+            "filename": doc.filename,
+            "file_type": doc.file_type,
+            "file_size_bytes": doc.file_size_bytes,
+            "sha256": doc.sha256,
+            "document_type": doc.document_type,
+            "classification_confidence": doc.classification_confidence,
+            "page_count": doc.page_count,
+            "status": doc.status,
+            "created_at": doc.created_at
+        }
+        for doc, investigation_title in documents
+    ]
 
 @router.get("/documents/{id}", response_model=DocumentResponse)
 def get_document(id: str, db: Session = Depends(get_db)):
@@ -325,7 +443,7 @@ def run_investigation_pipeline(id: str, db: Session = Depends(get_db)):
     agent.run_investigation_cycle()
 
     db.refresh(inv)
-    return inv
+    return get_investigation(id, db)
 
 @router.get("/investigations/{id}/findings", response_model=List[FindingResponse])
 def get_investigation_findings(id: str, db: Session = Depends(get_db)):
@@ -433,7 +551,11 @@ def health_check(db: Session = Depends(get_db)):
         "version": settings.APP_VERSION,
         "gemini_configured": bool(settings.GEMINI_API_KEY and len(settings.GEMINI_API_KEY.strip()) > 5),
         "gemini_model": settings.GEMINI_MODEL,
-        "ocr_engine": "PyMuPDF Native + Tesseract Installed",
+        "ocr_engine": (
+            "PyMuPDF Native + Tesseract"
+            if shutil.which("tesseract")
+            else "PyMuPDF Native (Tesseract not installed; image OCR unavailable)"
+        ),
         "database": {
             "status": "connected",
             "type": "SQLite + SQLAlchemy",
