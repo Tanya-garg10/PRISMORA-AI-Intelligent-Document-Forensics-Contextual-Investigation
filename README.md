@@ -201,10 +201,6 @@ npm run build
 
 These are available test commands; test results are not implied by this documentation.
 
-## Screenshots
-
-Screenshots are not included in this repository yet.
-
 ## Limitations and future work
 
 Current limitations include template/pattern-limited structured extraction, reliance on a locally installed Tesseract executable for image OCR, and the heuristic nature of visual indicators. Gemini explanations depend on an external API key and service availability. Review [docs/limitations.md](docs/limitations.md) and [docs/methodology.md](docs/methodology.md) for additional context.
