@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: prismora-ai
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    disk:
+      name: prismora-data
+      mountPath: /var/data
+      sizeGB: 10
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PYTHON_EXECUTABLE
+        value: /opt/venv/bin/python
+      - key: PORT
+        value: "10000"
+      - key: DATABASE_URL
+        value: sqlite:////var/data/prismora.db
+      - key: STORAGE_DIR
+        value: /var/data/storage
+      - key: ORIGINALS_DIR
+        value: /var/data/storage/originals
+      - key: RENDERED_DIR
+        value: /var/data/storage/rendered
+      - key: EVIDENCE_DIR
+        value: /var/data/storage/evidence
+      - key: GEMINI_API_KEY
+        sync: false

@@ -136,6 +136,18 @@ For the API server alone, with the Python environment active and from the reposi
 python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 5000
 ```
 
+## Deploy to Render
+
+The repository includes a Render Blueprint and Dockerfile for deploying the React frontend and FastAPI backend together as one web service:
+
+1. Push the repository to GitHub and create or sign in to a Render account.
+2. In Render, choose **New → Blueprint**, connect this repository, and select the `main` branch. Render will read [`render.yaml`](render.yaml) and build the [`Dockerfile`](Dockerfile).
+3. The Blueprint provisions a persistent disk at `/var/data`, stores SQLite and uploaded/generated files on that disk, and uses `/api/health` for health checks. Keep the disk attached to the service to retain investigations across deployments.
+4. Gemini is optional. Add `GEMINI_API_KEY` to the Render service environment only if Gemini explanations are wanted. Without it, deterministic analysis remains available.
+5. Wait for the first deploy to finish, then open the `onrender.com` service URL and check `/api/health`.
+
+The web server listens on Render's `PORT` environment variable. The Docker image installs Tesseract for image OCR. The included 10 GB persistent disk is intended for a single service instance; SQLite and this local-file storage setup are not designed for horizontal scaling or concurrent multi-instance deployment. Back up the disk before significant upgrades or operational changes.
+
 Useful URLs:
 
 - Frontend: [http://localhost:3000](http://localhost:3000)

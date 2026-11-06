@@ -8,11 +8,11 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = 3000;
-const PYTHON_PORT = 5000;
+const PORT = Number(process.env.PORT) || 3000;
+const PYTHON_PORT = Number(process.env.PYTHON_PORT) || 5000;
 
-// Spawn Python FastAPI backend process on port 5000
-console.log('[PRISMORA] Starting Python FastAPI backend on port 5000...');
+// Spawn the Python FastAPI backend on its internal proxy port.
+console.log(`[PRISMORA] Starting Python FastAPI backend on port ${PYTHON_PORT}...`);
 const pythonExecutable = process.env.PYTHON_EXECUTABLE || (process.platform === 'win32' ? 'python' : 'python3');
 const pyProc = spawn(pythonExecutable, ['-m', 'uvicorn', 'backend.app.main:app', '--host', '127.0.0.1', '--port', `${PYTHON_PORT}`], {
   cwd: __dirname,
