@@ -1,0 +1,6 @@
+{
+  "name": "PRISMORA AI",
+  "description": "AI-Powered Document Forensics & Contextual Intelligence System. See Beyond the Surface. Discover the Evidence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

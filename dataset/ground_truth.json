@@ -1,0 +1,229 @@
+{
+  "metadata": {
+    "dataset_name": "PRISMORA AI Forensic Benchmark Dataset",
+    "version": "1.0.0",
+    "generated_date": "2026-11-05",
+    "total_cases": 3,
+    "total_documents": 12,
+    "description": "Controlled multi-document synthetic benchmark for document forensics, contextual discrepancies, and visual anomaly detection."
+  },
+  "cases": {
+    "CASE_001": {
+      "case_id": "CASE_001",
+      "title": "Financial Information Inconsistency",
+      "category": "financial_discrepancy",
+      "description": "Applicant declared $12,500.00/month salary on loan application. Official employer pay stub, bank statements, and W2 tax filing confirm actual gross base salary is $9,200.00/month (net deposit $6,840.00/month). Discrepancy is $3,300.00/month ($39,600/year overstatement).",
+      "documents": [
+        {
+          "document_id": "C1_DOC_01",
+          "filename": "application_form.pdf",
+          "type": "loan_application",
+          "sha256": "e837f20ac0b317d43ff80bc7523d6b573e1827889d9b4dc8a271172fb014aae6",
+          "key_fields": {
+            "applicant_name": "Alex Mercer",
+            "employer": "Apex Dynamics LLC",
+            "stated_gross_monthly_salary": 12500.0,
+            "stated_annual_salary": 150000.0,
+            "requested_loan_amount": 420000.0
+          }
+        },
+        {
+          "document_id": "C1_DOC_02",
+          "filename": "salary_statement.pdf",
+          "type": "pay_stub",
+          "sha256": "1ce745630a73557d6e18860c6fcede15679e9339f58fa153995ea3f9b3a9afcd",
+          "key_fields": {
+            "employee_name": "Alex Mercer",
+            "employer": "Apex Dynamics LLC",
+            "gross_monthly_salary": 9200.0,
+            "net_monthly_pay": 6840.0,
+            "pay_date": "2025-12-31"
+          }
+        },
+        {
+          "document_id": "C1_DOC_03",
+          "filename": "bank_statement.pdf",
+          "type": "bank_statement",
+          "sha256": "e8902249fd76d9562d703db92734428cfbacc503567a288397bfd68983c1a89a",
+          "key_fields": {
+            "account_holder": "Alex Mercer",
+            "bank_name": "Meridian First Credit Bank",
+            "payroll_direct_deposit_amount": 6840.0,
+            "payroll_payer": "APEX DYNAMICS PAYROLL",
+            "statement_period_end": "2025-12-31"
+          }
+        },
+        {
+          "document_id": "C1_DOC_04",
+          "filename": "tax_return_w2.pdf",
+          "type": "tax_w2",
+          "sha256": "cded99330a416ed583ddaa655cb13c3c80486fcdddd705055132d9d80bd91e11",
+          "key_fields": {
+            "employee_name": "Alex Mercer",
+            "employer_name": "Apex Dynamics LLC",
+            "total_annual_wages": 110400.0
+          }
+        }
+      ],
+      "expected_findings": [
+        {
+          "finding_type": "contextual_inconsistency",
+          "severity": "CRITICAL",
+          "source_field": "stated_gross_monthly_salary",
+          "contradicted_by": [
+            "C1_DOC_02.gross_monthly_salary",
+            "C1_DOC_03.payroll_direct_deposit_amount",
+            "C1_DOC_04.total_annual_wages"
+          ],
+          "delta_value": 3300.0,
+          "explanation": "Declared monthly income ($12,500.00) exceeds substantiated gross pay stub earnings ($9,200.00) by $3,300.00 and does not match banking direct deposit cash flow ($6,840.00 net).",
+          "human_review_required": true
+        }
+      ]
+    },
+    "CASE_002": {
+      "case_id": "CASE_002",
+      "title": "Address Information Inconsistency",
+      "category": "address_discrepancy",
+      "description": "Credit application and electricity bill state residence at 742 Evergreen Terrace, Springfield, OR 97477. However, an active residential lease agreement and official HR employment verification record primary legal residence at 894 Willow Creek Way, Apt 3B, Eugene, OR 97401.",
+      "documents": [
+        {
+          "document_id": "C2_DOC_01",
+          "filename": "credit_application.pdf",
+          "type": "credit_application",
+          "sha256": "b9a19f00302384599eebcbb7618880c3121f74582c82aab3d2a389474dafd2e5",
+          "key_fields": {
+            "applicant_name": "Elena Vance",
+            "residential_address": "742 Evergreen Terrace, Springfield, OR 97477",
+            "years_at_address": 3
+          }
+        },
+        {
+          "document_id": "C2_DOC_02",
+          "filename": "utility_bill.pdf",
+          "type": "utility_bill",
+          "sha256": "9d4cfcdb09a052df7313941ecceb923b6940fc6e3c6768d59f117a62779305fc",
+          "key_fields": {
+            "customer_name": "Elena Vance",
+            "service_address": "742 Evergreen Terrace, Springfield, OR 97477",
+            "bill_date": "2026-01-15"
+          }
+        },
+        {
+          "document_id": "C2_DOC_03",
+          "filename": "lease_agreement.pdf",
+          "type": "lease_agreement",
+          "sha256": "ea4b8ad5f79fa030d14df685dbbde33af0396dd54e7ae4cc71f101c0238bb7a0",
+          "key_fields": {
+            "tenant_name": "Elena Vance",
+            "leased_premises": "894 Willow Creek Way, Apt 3B, Eugene, OR 97401",
+            "effective_date": "2025-11-01"
+          }
+        },
+        {
+          "document_id": "C2_DOC_04",
+          "filename": "employer_verification.pdf",
+          "type": "hr_verification",
+          "sha256": "03cc00a85b2e94a7959a1ded934f41bf4fc7fa2df25f2b2b4a1c2a28202b42b9",
+          "key_fields": {
+            "employee_name": "Elena Vance",
+            "address_on_file": "894 Willow Creek Way, Apt 3B, Eugene, OR 97401",
+            "date_issued": "2026-01-20"
+          }
+        }
+      ],
+      "expected_findings": [
+        {
+          "finding_type": "address_contradiction",
+          "severity": "HIGH",
+          "source_field": "residential_address",
+          "contradicted_by": [
+            "C2_DOC_03.leased_premises",
+            "C2_DOC_04.address_on_file"
+          ],
+          "explanation": "Application declares Springfield address, whereas primary 12-month lease executed Nov 2025 and HR corporate records register primary domicile in Eugene, OR.",
+          "benign_alternative": "Applicant recently moved or maintains dual residence for work proximity.",
+          "human_review_required": true
+        }
+      ]
+    },
+    "CASE_003": {
+      "case_id": "CASE_003",
+      "title": "Visual Document Anomaly & Tampering",
+      "category": "visual_tampering",
+      "description": "Authentic commercial invoice INV-2026-8829 totals $14,500.00, matching authorized Purchase Order PO-4401 and delivery manifest. The altered invoice file shows localized pixel splicing changing total to $41,500.00 with distinct compression and ELA artifact anomalies.",
+      "documents": [
+        {
+          "document_id": "C3_DOC_01",
+          "filename": "authentic_invoice.pdf",
+          "type": "commercial_invoice",
+          "sha256": "111c715d21618e83bf35f40b0a3e9c4482edc1ae09ae1f21ed13b1b0b13f4449",
+          "key_fields": {
+            "invoice_number": "INV-2026-8829",
+            "vendor": "Vanguard Industrial Supplies",
+            "total_amount": 14500.0
+          }
+        },
+        {
+          "document_id": "C3_DOC_02",
+          "filename": "altered_invoice.pdf",
+          "type": "altered_invoice",
+          "sha256": "faf329ce4b05183b2eabfeb727d8255479c08f97737b3f4a65a84164b8c347fa",
+          "is_altered": true,
+          "altered_coordinates_200dpi": {
+            "x1": 1120,
+            "y1": 615,
+            "x2": 1540,
+            "y2": 665,
+            "target_field": "total_amount",
+            "original_text": "$14,500.00 USD",
+            "altered_text": "$41,500.00 USD"
+          },
+          "key_fields": {
+            "invoice_number": "INV-2026-8829",
+            "vendor": "Vanguard Industrial Supplies",
+            "total_amount": 41500.0
+          }
+        },
+        {
+          "document_id": "C3_DOC_03",
+          "filename": "purchase_order.pdf",
+          "type": "purchase_order",
+          "sha256": "720626e111cda43a4683addc141e25a9c488fd4b9677732c3c3320ba6caee3d8",
+          "key_fields": {
+            "po_number": "PO-4401",
+            "authorized_total": 14500.0,
+            "authorized_signatory": "Marcus Reed"
+          }
+        },
+        {
+          "document_id": "C3_DOC_04",
+          "filename": "shipping_manifest.pdf",
+          "type": "shipping_manifest",
+          "sha256": "d26a14e739f8525cc5c59dcc388d4c8880eb6f2d8617100983e72b5174c08fc1",
+          "key_fields": {
+            "manifest_number": "WB-2026-7719",
+            "total_items": 15,
+            "delivery_status": "Delivered"
+          }
+        }
+      ],
+      "expected_findings": [
+        {
+          "finding_type": "visual_forensic_splice",
+          "severity": "CRITICAL",
+          "source_field": "total_amount",
+          "detection_technique": "Error Level Analysis (ELA) + Region Comparison",
+          "evidence_coordinates": [
+            1120,
+            615,
+            1540,
+            665
+          ],
+          "explanation": "Localized compression error variance detected over invoice total amount box. Purchase Order PO-4401 corroborates authentic amount of $14,500.00.",
+          "human_review_required": true
+        }
+      ]
+    }
+  }
+}

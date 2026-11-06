@@ -1,0 +1,25 @@
+{
+  "dataset_name": "PRISMORA AI Forensic Dataset",
+  "total_cases": 3,
+  "cases": [
+    {
+      "case_id": "CASE_001",
+      "name": "Financial Information Inconsistency",
+      "documents_count": 4,
+      "core_discrepancy": "$12,500 stated salary vs $9,200 substantiated gross pay"
+    },
+    {
+      "case_id": "CASE_002",
+      "name": "Address Information Inconsistency",
+      "documents_count": 4,
+      "core_discrepancy": "Springfield application/utility vs Eugene primary lease & HR record"
+    },
+    {
+      "case_id": "CASE_003",
+      "name": "Visual Document Anomaly",
+      "documents_count": 4,
+      "core_discrepancy": "Invoice total digitally altered from $14,500 to $41,500 with ELA signature"
+    }
+  ],
+  "integrity_checksum_verified": true
+}
