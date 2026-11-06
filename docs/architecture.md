@@ -1,6 +1,5 @@
 # PRISMORA AI — System Architecture
 **AI-Powered Document Forensics & Contextual Intelligence System**
----
 
 ## 1. Architectural Philosophy
 Traditional OCR systems treat documents in isolation: they ingest pixels and output text. **PRISMORA AI** approaches multi-document verification through contextual forensics:
@@ -10,8 +9,6 @@ Traditional OCR systems treat documents in isolation: they ingest pixels and out
    - **Potential Anomaly**: Field mismatch or logical discrepancy with plausible benign explanations.
    - **Human Review**: A reviewer records a decision; the application does not independently confirm fraud.
 3. **Bounded Agentic Loop**: An autonomous, self-limiting investigation agent executing `OBSERVE → PLAN → INVESTIGATE → CORRELATE → EXPLAIN → REVIEW`.
-
----
 
 ## 2. Six Core Intelligence Engines
 
@@ -32,8 +29,6 @@ Traditional OCR systems treat documents in isolation: they ingest pixels and out
   │ • Contradictions  │ • Chain of Custody│ • Visual Evidence Insets       │
   └───────────────────┴───────────────────┴────────────────────────────────┘
 ```
-
----
 
 ## 3. Data Flow Pipeline
 1. **Ingestion (`DocMind`)**: Files are hashed (SHA-256), stored under the local storage directory, PDF pages are rendered at 200 DPI, and page text is extracted. Image OCR uses Tesseract when installed.
