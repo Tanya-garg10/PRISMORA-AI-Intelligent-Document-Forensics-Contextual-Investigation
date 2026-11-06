@@ -24,7 +24,7 @@ Traditional OCR systems treat documents in isolation: they ingest pixels and out
   ├───────────────────┼───────────────────┼────────────────────────────────┤
   │ 4. CrossDoc Graph │ 5. EvidenceVault  │ 6. DossierGen                  │
   │ Relationship Net  │ Audit & Integrity │ PDF Report Generation          │
-  │ • React Flow Net  │ • File Hashes     │ • ReportLab PDFs                │
+  │ • React Flow Net  │ • File Hashes     │ • ReportLab PDFs               │
   │ • Entity Linking  │ • Bounding Box Ref│ • Complete Audit Provenance    │
   │ • Contradictions  │ • Chain of Custody│ • Visual Evidence Insets       │
   └───────────────────┴───────────────────┴────────────────────────────────┘
