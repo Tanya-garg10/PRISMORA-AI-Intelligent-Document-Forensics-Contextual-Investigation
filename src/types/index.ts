@@ -85,6 +85,7 @@ export interface ForensicObservation {
     y2: number;
   } | null;
   evidence_crop_url?: string;
+  ela_image_url?: string;
   limitations?: string;
   created_at?: string;
 }

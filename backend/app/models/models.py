@@ -88,6 +88,7 @@ class ForensicObservation(Base):
     anomaly_score = Column(Float, default=0.0)
     bounding_box = Column(JSON, nullable=True)
     evidence_crop_path = Column(String(500), nullable=True)
+    ela_image_path = Column(String(500), nullable=True)
     limitations = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

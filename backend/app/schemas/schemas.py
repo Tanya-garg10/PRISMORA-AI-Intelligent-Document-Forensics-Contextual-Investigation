@@ -38,6 +38,8 @@ class ForensicObservationResponse(BaseModel):
     bounding_box: Optional[Dict[str, Any]] = None
     evidence_crop_path: Optional[str] = None
     evidence_crop_url: Optional[str] = None
+    ela_image_path: Optional[str] = None
+    ela_image_url: Optional[str] = None
     limitations: Optional[str] = None
     created_at: datetime
 

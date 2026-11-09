@@ -4,7 +4,7 @@ import io
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
-from PIL import Image, ImageChops, ImageEnhance
+from PIL import Image, ImageChops, ImageDraw
 import fitz
 from backend.app.core.config import settings
 
@@ -21,17 +21,6 @@ class PixelTraceService:
         recompressed = Image.open(buffer).convert("RGB")
 
         diff = ImageChops.difference(img, recompressed)
-        extrema = diff.getextrema()
-        max_diff = max([ex[1] for ex in extrema])
-        scale = 255.0 / max_diff if max_diff > 0 else 1.0
-        scale = min(scale, 15.0)
-        enhancer = ImageEnhance.Brightness(diff)
-        diff_enhanced = enhancer.enhance(scale)
-
-        ela_id = str(uuid.uuid4())
-        ela_filename = f"ela_{ela_id}.png"
-        ela_path = settings.EVIDENCE_DIR / ela_filename
-        diff_enhanced.save(str(ela_path))
 
         diff_np = np.array(diff, dtype=np.float32)
         tile_size = 64
@@ -59,6 +48,25 @@ class PixelTraceService:
         overall_std = np.std(tile_errors) if tile_errors else 0.0
         anomaly_ratio = (max_tile_error - overall_mean) / (overall_std + 1e-5) if overall_std > 0 else 0.0
         normalized_anomaly = float(min(max(anomaly_ratio / 6.0, 0.0), 1.0))
+
+        diff_gray = np.array(diff.convert("L"), dtype=np.float32)
+        hi = float(np.percentile(diff_gray, 99.5))
+        if hi <= 0:
+            hi = 1.0
+        enhanced = np.clip(diff_gray * (255.0 / hi), 0, 255).astype(np.uint8)
+        diff_enhanced = Image.fromarray(enhanced, "L").convert("RGB")
+
+        if max_box:
+            draw = ImageDraw.Draw(diff_enhanced)
+            draw.rectangle(
+                [max_box["x1"], max_box["y1"], max_box["x2"] - 1, max_box["y2"] - 1],
+                outline=(255, 60, 60), width=10,
+            )
+
+        ela_id = str(uuid.uuid4())
+        ela_filename = f"ela_{ela_id}.png"
+        ela_path = settings.EVIDENCE_DIR / ela_filename
+        diff_enhanced.save(str(ela_path))
 
         return str(ela_path), normalized_anomaly, max_box
 
@@ -140,6 +148,7 @@ class PixelTraceService:
                 "anomaly_score": anomaly_score,
                 "bounding_box": max_box,
                 "evidence_crop_path": evidence_crop or ela_path,
+                "ela_image_path": ela_path,
                 "limitations": "ELA variance is an investigative indicator, not conclusive proof."
             })
 
@@ -158,6 +167,7 @@ class PixelTraceService:
             "anomaly_score": 0.65 if found_editor else 0.05,
             "bounding_box": None,
             "evidence_crop_path": None,
+            "ela_image_path": None,
             "limitations": "Metadata can be stripped or modified during file export."
         })
 

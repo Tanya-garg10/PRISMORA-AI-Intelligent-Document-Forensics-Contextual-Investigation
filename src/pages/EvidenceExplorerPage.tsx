@@ -401,11 +401,18 @@ export default function EvidenceExplorerPage() {
                       <span className="text-[10px] text-slate-400">score: {Math.round((obs.anomaly_score || 0) * 100)}%</span>
                     </div>
                     <p className="text-[11px] text-slate-600">{obs.description}</p>
-                    {obs.evidence_crop_url && (
-                      <a className="mt-2 inline-block text-violet-700 font-semibold" href={obs.evidence_crop_url} target="_blank" rel="noreferrer">
-                        Open visual evidence
-                      </a>
-                    )}
+                    <div className="mt-2 flex flex-wrap gap-3">
+                      {obs.ela_image_url && (
+                        <a className="text-violet-700 font-semibold" href={obs.ela_image_url} target="_blank" rel="noreferrer">
+                          Open ELA image
+                        </a>
+                      )}
+                      {obs.evidence_crop_url && obs.evidence_crop_url !== obs.ela_image_url && (
+                        <a className="text-slate-500 font-semibold" href={obs.evidence_crop_url} target="_blank" rel="noreferrer">
+                          Open anomaly crop
+                        </a>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

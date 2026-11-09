@@ -144,8 +144,8 @@ def get_investigation(id: str, db: Session = Depends(get_db)):
                     if page.rendered_image_path else None
                 ),
                 "ela_image_url": (
-                    f"/storage/evidence/{Path(ela_observation.evidence_crop_path).name}"
-                    if ela_observation and ela_observation.evidence_crop_path else None
+                    f"/storage/evidence/{Path(ela_observation.ela_image_path or ela_observation.evidence_crop_path).name}"
+                    if ela_observation and (ela_observation.ela_image_path or ela_observation.evidence_crop_path) else None
                 ),
                 "width": page.width,
                 "height": page.height,
@@ -181,6 +181,10 @@ def get_investigation(id: str, db: Session = Depends(get_db)):
                     "evidence_crop_url": (
                         f"/storage/evidence/{Path(observation.evidence_crop_path).name}"
                         if observation.evidence_crop_path else None
+                    ),
+                    "ela_image_url": (
+                        f"/storage/evidence/{Path(observation.ela_image_path).name}"
+                        if observation.ela_image_path else None
                     ),
                     "limitations": observation.limitations,
                     "created_at": observation.created_at
@@ -384,6 +388,7 @@ def run_investigation_pipeline(id: str, db: Session = Depends(get_db)):
                 anomaly_score=obs["anomaly_score"],
                 bounding_box=obs["bounding_box"],
                 evidence_crop_path=obs["evidence_crop_path"],
+                ela_image_path=obs.get("ela_image_path"),
                 limitations=obs["limitations"]
             )
             db.add(obs_obj)
