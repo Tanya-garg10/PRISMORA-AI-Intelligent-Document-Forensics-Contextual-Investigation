@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r backend/requirements.txt
 
 COPY package.json ./
-RUN npm install --no-audit --no-fund
+RUN npm install --include=dev --no-audit --no-fund
 
 COPY . .
 
